@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAE MIS Dashboard – Luna</title>
+<style>
+  :root{
+    --bg:#020b16; --panel:#071426; --panel2:#0b1c33; --line:#16304f;
+    --text:#eef4ff; --muted:#8fa6c4; --red:#ff2a2a; --blue:#2aa8ff;
+    --green:#2fd27a; --amber:#ffb020; --crit:#ff5a5a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:calc(100vw / 96)}           /* 20px at 1920 wide, scales on 4K */
+  body{
+    height:100vh;overflow:hidden;color:var(--text);
+    background:radial-gradient(120% 90% at 50% 0%,#06182e 0%,var(--bg) 60%);
+    font-family:"Segoe UI",Roboto,Arial,Helvetica,sans-serif;
+    display:flex;flex-direction:column;gap:.6rem;padding:0 0 .7rem;
+  }
+  /* ---------- banner ---------- */
+  .banner{flex:0 0 auto;width:100%;line-height:0}
+  .banner img{width:100%;height:auto;display:block}
+
+  /* ---------- info strip ---------- */
+  .strip{flex:0 0 auto;display:flex;align-items:center;gap:.8rem;padding:0 1rem}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:.5rem;
+        padding:.35rem .9rem;display:flex;align-items:baseline;gap:.55rem;white-space:nowrap}
+  .chip b{font-size:1.5rem;font-weight:800;line-height:1}
+  .chip span{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .chip.date{border-color:var(--red)}
+  .chip.date b{font-size:1.2rem}
+  .spacer{flex:1}
+  .live{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--muted)}
+  .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--green);box-shadow:0 0 .6rem var(--green)}
+  .live.err .dot{background:var(--crit);box-shadow:0 0 .6rem var(--crit)}
+  .live.err{color:var(--crit)}
+  .clock{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}
+
+  /* ---------- table ---------- */
+  .board{flex:1 1 auto;min-height:0;margin:0 1rem;display:flex;flex-direction:column;
+         border:1px solid var(--line);border-radius:.7rem;overflow:hidden;background:var(--panel)}
+  .row{display:grid;grid-template-columns:17% 27% 27% 29%;align-items:stretch}
+  .head{flex:0 0 auto;background:var(--panel2);border-bottom:2px solid var(--red)}
+  .head div{padding:.55rem 1rem;font-size:.85rem;font-weight:800;letter-spacing:.12em;
+            text-transform:uppercase;color:#cfe1ff}
+  .scroller{flex:1 1 auto;min-height:0;overflow:hidden;position:relative}
+  .body{height:100%;display:flex;flex-direction:column;animation:fade .6s ease}
+  .body .row{flex:1 1 auto;border-bottom:1px solid var(--line)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .slides{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .slides i{width:2.2rem;height:.4rem;border-radius:.3rem;background:var(--line);position:relative;overflow:hidden}
+  .slides i.on{background:#3a1216}
+  .slides i.on::after{content:"";position:absolute;inset:0;background:var(--red);transform-origin:left;animation:fill var(--slide,10s) linear forwards}
+  @keyframes fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .body .row:nth-child(even){background:rgba(255,255,255,.025)}
+  .cell{padding:.35rem 1rem;font-size:1.05rem;line-height:1.3;display:flex;flex-direction:column;justify-content:center;gap:.3rem;min-width:0}
+  .eng{font-weight:800;font-size:1.2rem;border-right:1px solid var(--line)}
+  .eng small{font-weight:600;font-size:.7rem;color:var(--muted);letter-spacing:.04em}
+  .cell+.cell{border-left:1px solid rgba(22,48,79,.6)}
+  .item{display:flex;gap:.5rem;align-items:flex-start;overflow-wrap:anywhere}
+  .item::before{content:"";flex:0 0 .45rem;height:.45rem;margin-top:.5rem;border-radius:50%;background:var(--blue)}
+  .none{color:#4d6485;font-size:1.2rem}
+  .crn{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap}
+  .crn .no{font-weight:800}
+  .crn .dt{color:var(--muted);font-size:.85rem}
+  .tag{font-size:.7rem;font-weight:800;letter-spacing:.05em;padding:.1rem .5rem;border-radius:2rem;border:1px solid;text-transform:uppercase}
+  .tag.closed{color:var(--green);border-color:var(--green)}
+  .tag.wip{color:var(--amber);border-color:var(--amber)}
+  .tag.ns{color:var(--crit);border-color:var(--crit)}
+  .tag.na{color:var(--muted);border-color:var(--muted)}
+  .empty{padding:3rem;text-align:center;color:var(--muted);font-size:1.4rem}
+</style>
+</head>
+<body>
+
+<div class="banner"><img src="banner.png" alt="Luna – FAE MIS Dashboard"></div>
+
+<div class="strip">
+  <div class="chip date"><span>Data for</span><b id="repDate">–</b></div>
+  <div class="chip"><b id="kEng">0</b><span>Engineers</span></div>
+  <div class="chip"><b id="kVis">0</b><span>Visits</span></div>
+  <div class="chip"><b id="kTask">0</b><span>Daily tasks</span></div>
+  <div class="chip"><b id="kCrn">0</b><span>CRNs</span></div>
+  <div class="spacer"></div>
+  <div class="slides"><span id="slideTxt">Slide 1 / 2</span><span id="dots" style="display:flex;gap:.4rem"></span></div>
+  <div class="live" id="live"><i class="dot"></i><span id="liveTxt">Connecting…</span></div>
+  <div class="clock" id="clock"></div>
+</div>
+
+<div class="board">
+  <div class="row head">
+    <div>Engineer name</div><div>Visit name</div><div>Daily task</div><div>CRN</div>
+  </div>
+  <div class="scroller" id="scroller"><div class="body" id="body"></div></div>
+</div>
+
+<script>
+/* =====================  SETTINGS – only edit here  ===================== */
+const CONFIG = {
+  SHEET_ID: "1ILYH_T0P4DaFzuThQU_8SXCZH3hG74z7jmDW1oL6Qns",
+  TAB_VISIT: "VISIT",
+  TAB_TASK:  "TASK",
+  TAB_CRN:   "CRN",
+  REFRESH_SECONDS: 120,        // how often the TV re-reads the Google Sheet
+  CRN_FILTER_BY_DATE: false,   // false = show every CRN of the engineer in the CRN tab
+                               // true  = show only CRNs created on the displayed date
+  SLIDES: 2,                   // engineers are split over this many slides
+  SLIDE_SECONDS: 10            // seconds each slide stays on screen
+};
+/* ======================================================================= */
+
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const qs = new URLSearchParams(location.search);
+const SHEET_ID = qs.get("sheet") || CONFIG.SHEET_ID;
+const FORCE_DATE = qs.get("date");               // optional: ?date=18/11/2026
+
+/* ---------- CSV parser (handles quotes and line breaks inside cells) ---------- */
+function parseCSV(t){
+  const rows=[];let r=[],f="",q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===","){ r.push(f);f=""; }
+    else if(c==="\n"||c==="\r"){ if(c==="\r"&&t[i+1]==="\n")i++; r.push(f);f="";rows.push(r);r=[]; }
+    else f+=c;
+  }
+  if(f!==""||r.length){r.push(f);rows.push(r);}
+  return rows.filter(x=>x.some(v=>String(v).trim()!==""));
+}
+function toObjects(rows){
+  if(!rows.length) return [];
+  const h=rows[0].map(x=>x.trim().toLowerCase());
+  return rows.slice(1).map(r=>{const o={};h.forEach((k,i)=>o[k]=(r[i]??"").trim());return o;});
+}
+const pick=(o,...keys)=>{ for(const k of keys){ if(o[k]) return o[k]; } return ""; };
+
+/* ---------- helpers ---------- */
+const normName=s=>s.toLowerCase().replace(/[.\s]+/g," ").trim();
+const cleanName=s=>s.replace(/[.\s]+$/,"").replace(/\s+/g," ").trim();
+function parseDate(s){                       // returns "YYYY-MM-DD" or ""
+  if(!s) return "";
+  s=s.trim(); let m;
+  if((m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/))) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+  if((m=s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return `${m[1]}-${m[2]}-${m[3]}`;
+  const d=new Date(s); if(!isNaN(d)) return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  return "";
+}
+const fmtDate=iso=>{ if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${+d} ${MON[+m-1]} ${y}`; };
+const fmtShort=iso=>{ if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${+d} ${MON[+m-1]}`; };
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function loadTab(tab){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(tab)}&_=${Date.now()}`;
+  const res=await fetch(url,{cache:"no-store"});
+  if(!res.ok) throw new Error(tab+" HTTP "+res.status);
+  const txt=await res.text();
+  if(txt.trim().startsWith("<")) throw new Error(tab+": sheet is not shared publicly");
+  return toObjects(parseCSV(txt));
+}
+
+/* ---------- build the merged view ---------- */
+function build(visits,tasks,crns){
+  const V=visits.map(o=>({
+    eng:pick(o,"visit: created by","created by","assigned person"),
+    name:pick(o,"visit: visit name","visit name"),
+    date:parseDate(pick(o,"check-in time","check in time"))
+  })).filter(x=>x.eng);
+  const T=tasks.map(o=>({
+    eng:pick(o,"assigned person","daily task: created by"),
+    org:pick(o,"organisation name","organization name","daily task: daily task"),
+    date:parseDate(pick(o,"daily task: created date","created date"))
+  })).filter(x=>x.eng);
+  const C=crns.map(o=>({
+    eng:pick(o,"assigned person"),
+    no:pick(o,"complaint tracking: complaint tracking number","complaint tracking number","crn"),
+    date:parseDate(pick(o,"complaint tracking: created date","created date")),
+    status:pick(o,"status")
+  })).filter(x=>x.eng&&x.no);
+
+  // date to display = newest date found in VISIT / TASK (or ?date=)
+  const dates=[...V,...T].map(x=>x.date).filter(Boolean).sort();
+  let day=FORCE_DATE?parseDate(FORCE_DATE):dates[dates.length-1]||"";
+  if(!day){ const cd=C.map(x=>x.date).filter(Boolean).sort(); day=cd[cd.length-1]||""; }
+
+  const eng=new Map();                     // key -> {name,visits[],tasks[],crns[]}
+  const get=n=>{ const k=normName(n); if(!eng.has(k)) eng.set(k,{name:cleanName(n),visits:[],tasks:[],crns:[]}); return eng.get(k); };
+  V.filter(x=>x.date===day).forEach(x=>get(x.eng).visits.push(x.name||"(no name)"));
+  T.filter(x=>x.date===day).forEach(x=>get(x.eng).tasks.push(x.org||"(no name)"));
+  C.filter(x=>!CONFIG.CRN_FILTER_BY_DATE||x.date===day).forEach(x=>get(x.eng).crns.push(x));
+
+  const list=[...eng.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  list.forEach(e=>e.crns.sort((a,b)=>(a.date<b.date?-1:a.date>b.date?1:0)));
+  return {day,list,
+    kVis:V.filter(x=>x.date===day).length,
+    kTask:T.filter(x=>x.date===day).length,
+    kCrn:list.reduce((n,e)=>n+e.crns.length,0)};
+}
+
+function statusTag(s){
+  const t=s.toLowerCase();
+  if(t.startsWith("closed")) return `<span class="tag closed">Closed</span>`;
+  if(t.includes("wip")||t.includes("progress")) return `<span class="tag wip">WIP</span>`;
+  if(t.includes("not started")) return `<span class="tag ns">Not started</span>`;
+  return s?`<span class="tag na">${esc(s)}</span>`:`<span class="tag na">Open</span>`;
+}
+
+let MODEL=null, PAGES=[], cur=0;
+function splitPages(list,n){
+  const w=e=>Math.max(e.visits.length,e.tasks.length,e.crns.length,1);
+  const total=list.reduce((a,e)=>a+w(e),0);
+  const pages=[];let acc=0,page=[];
+  list.forEach((e,i)=>{
+    page.push(e);acc+=w(e);
+    if(pages.length<n-1&&acc>=total*(pages.length+1)/n&&i<list.length-1){pages.push(page);page=[];}
+  });
+  pages.push(page);
+  return pages;
+}
+function render(m){
+  MODEL=m; PAGES=splitPages(m.list,CONFIG.SLIDES); if(cur>=PAGES.length)cur=0;
+  document.getElementById("kEng").textContent=m.list.length;
+  document.getElementById("kVis").textContent=m.kVis;
+  document.getElementById("kTask").textContent=m.kTask;
+  document.getElementById("kCrn").textContent=m.kCrn;
+  document.getElementById("repDate").textContent=fmtDate(m.day)||"–";
+  showSlide(cur);
+}
+function showSlide(i){
+  cur=i; const m=MODEL; if(!m) return;
+  const list=PAGES[i]||[];
+  const dots=document.getElementById("dots");
+  dots.style.setProperty("--slide",CONFIG.SLIDE_SECONDS+"s");
+  dots.innerHTML=PAGES.map((_,k)=>`<i class="${k===i?"on":""}" style="--slide:${CONFIG.SLIDE_SECONDS}s"></i>`).join("");
+  document.getElementById("slideTxt").textContent=`Slide ${i+1} / ${PAGES.length}`;
+  paint(list);
+}
+function paint(list){
+  const m={list};
+  const none=`<span class="none">—</span>`;
+  const body=document.getElementById("body");
+  if(!m.list.length){ body.innerHTML=`<div class="empty">No data found in the Google Sheet yet.</div>`; return; }
+  body.innerHTML=m.list.map(e=>`
+    <div class="row">
+      <div class="cell eng">${esc(e.name)}</div>
+      <div class="cell">${e.visits.length?e.visits.map(v=>`<div class="item">${esc(v)}</div>`).join(""):none}</div>
+      <div class="cell">${e.tasks.length?e.tasks.map(v=>`<div class="item">${esc(v)}</div>`).join(""):none}</div>
+      <div class="cell">${e.crns.length?e.crns.map(c=>
+        `<div class="crn"><span class="no">${esc(c.no)}</span><span class="dt">– ${fmtShort(c.date)}</span>${statusTag(c.status)}</div>`).join(""):none}</div>
+    </div>`).join("");
+}
+
+/* ---------- refresh loop ---------- */
+let lastOK=null;
+async function refresh(){
+  const live=document.getElementById("live"), txt=document.getElementById("liveTxt");
+  try{
+    const [v,t,c]=await Promise.all([loadTab(CONFIG.TAB_VISIT),loadTab(CONFIG.TAB_TASK),loadTab(CONFIG.TAB_CRN)]);
+    render(build(v,t,c));
+    lastOK=new Date(); live.classList.remove("err");
+    txt.textContent="Live · updated "+lastOK.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  }catch(e){
+    console.error(e); live.classList.add("err");
+    txt.textContent=lastOK?"Offline – showing last data ("+lastOK.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})+")"
+                          :"Cannot read sheet – share it as “Anyone with the link: Viewer”";
+  }
+}
+refresh(); setInterval(refresh,CONFIG.REFRESH_SECONDS*1000);
+setTimeout(()=>location.reload(), 6*3600*1000);          // fresh start every 6 h (TV runs 24x7)
+
+/* ---------- clock ---------- */
+function tick(){ document.getElementById("clock").textContent=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}); }
+tick(); setInterval(tick,10000);
+
+/* ---------- slide rotation ---------- */
+setInterval(()=>{ if(PAGES.length>1) showSlide((cur+1)%PAGES.length); }, CONFIG.SLIDE_SECONDS*1000);
+</script>
+</body>
+</html>
